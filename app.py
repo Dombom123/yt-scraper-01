@@ -360,9 +360,17 @@ if st.session_state.sentiment_analysis is None and st.session_state.quant_result
 # -----------------------------------------------------------------------------
 # Sidebar Navigation – Two Pages Only
 # -----------------------------------------------------------------------------
-page = st.sidebar.selectbox("Navigation", 
-    ["Dashboard & Metrics", "LLM Comment Analysis"]
-)
+# Define the pages with emojis
+pages = {
+    "Dashboard & Metrics": "📊 Dashboard & Metrics",
+    "LLM Comment Analysis": "📝 LLM Comment Analysis"
+}
+
+# Create buttons for each page
+page = "Dashboard & Metrics"
+for page_name, page_label in pages.items():
+    if st.sidebar.button(page_label):
+        page = page_name
 
 # ----- Page: Dashboard & Metrics -----
 if page == "Dashboard & Metrics":
