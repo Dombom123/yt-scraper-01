@@ -474,7 +474,7 @@ elif page == "Quantitative Analyse":
 
 
         
-        if st.button("Starte Quantitative Analyse"):
+        if st.button("Quantitative Analyse erneut starten (Ergebnisse sind bereits gespeichert)"):
             # Use preloaded sentiment analysis if available; otherwise, perform it.
             if (st.session_state.sentiment_analysis is
                 isinstance(st.session_state.sentiment_analysis, pd.DataFrame) and 
