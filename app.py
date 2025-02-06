@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import re
 from wordcloud import WordCloud  # We don't use built-in STOPWORDS anymore.
 import nltk
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
+# Commented out because sentiment analysis is pre-calculated:
+# from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from nltk.corpus import stopwords as nltk_stopwords
 import plotly.express as px
 import networkx as nx
@@ -15,8 +16,8 @@ import os
 import pickle
 from openai import OpenAI
 
-# Download required NLTK resources
-nltk.download('vader_lexicon')
+# Download required NLTK resources (only stopwords are needed)
+# nltk.download('vader_lexicon')  <-- Removed since sentiment analysis is cached
 nltk.download('stopwords')
 
 # Set up OpenAI API key from environment variable or Streamlit secrets
@@ -148,20 +149,9 @@ def generate_wordcloud(text, custom_stopwords="", min_word_length=0):
     wc = WordCloud(width=800, height=400, background_color='white').generate(filtered_text)
     return wc, active_stopwords, filtered_text
 
+# Since sentiment analysis is pre-calculated, we replace this function with a stub.
 def perform_sentiment_analysis(comments_df):
-    sia = SentimentIntensityAnalyzer()
-    if 'Kommentar' not in comments_df.columns:
-        st.error("Spalte 'Kommentar' nicht gefunden in den Kommentardaten.")
-        return comments_df
-    comments_df['sentiment_score'] = comments_df['Kommentar'].apply(lambda x: sia.polarity_scores(str(x))['compound'])
-    def classify(score):
-        if score >= 0.05:
-            return 'Positiv'
-        elif score <= -0.05:
-            return 'Negativ'
-        else:
-            return 'Neutral'
-    comments_df['sentiment'] = comments_df['sentiment_score'].apply(classify)
+    st.info("Sentiment analysis is pre-calculated; skipping runtime analysis.")
     return comments_df
 
 def plot_engagement(df):
@@ -398,14 +388,13 @@ if page == "Dashboard & Metrics":
         avg_engagement = video_df['engagement_score'].mean()
         top_videos = rank_top_videos(video_df)
         
-        # Ensure sentiment analysis is performed
+        # Ensure sentiment analysis is used from cache (pre-calculated)
         if st.session_state.sentiment_analysis is None or not isinstance(st.session_state.sentiment_analysis, pd.DataFrame):
             comments_df = perform_sentiment_analysis(comments_df)
             st.session_state.sentiment_analysis = comments_df.copy()
         else:
             comments_df = st.session_state.sentiment_analysis
-        sentiment_counts = comments_df['sentiment'].value_counts()
-        
+
         st.subheader("Key Performance Indicators (KPIs)")
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Total Videos", total_videos)
@@ -422,14 +411,8 @@ if page == "Dashboard & Metrics":
         
         st.subheader("Sentiment Analysis")
         st.write("Sentiment Counts:")
-        # Get the value counts and assign a name to the count values
-        sentiment_counts = comments_df['sentiment'].value_counts()
-        sentiment_counts.name = 'count'
-
-        # Reset the index to turn it into a DataFrame and rename columns appropriately
-        sentiment_counts_df = sentiment_counts.reset_index()
-        sentiment_counts_df.rename(columns={'index': 'sentiment'}, inplace=True)
-
+        # Build the sentiment counts DataFrame in one go:
+        sentiment_counts_df = comments_df['sentiment'].value_counts().rename_axis('sentiment').reset_index(name='count')
         st.write(sentiment_counts_df)
 
         # Use the new column names in the bar chart
