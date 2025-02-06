@@ -325,7 +325,7 @@ if st.session_state.video_df is None:
         video_df_default = prepare_video_data(default_video_file)
         if video_df_default is not None:
             st.session_state.video_df = video_df_default
-            st.info("Standard Video-Metadaten aus 'videos_detailed_with_comments.csv' geladen.")
+            # st.info("Standard Video-Metadaten aus 'videos_detailed_with_comments.csv' geladen.")
     else:
         st.error("Standard Video-Datensatz nicht gefunden.")
 
@@ -335,7 +335,7 @@ if st.session_state.comments_df is None:
         comments_df_default = prepare_comments_data(default_comments_file)
         if comments_df_default is not None:
             st.session_state.comments_df = comments_df_default
-            st.info("Standard Kommentardaten aus 'comments_with_sentiment.csv' geladen.")
+            # st.info("Standard Kommentardaten aus 'comments_with_sentiment.csv' geladen.")
     else:
         st.error("Standard Kommentardatensatz nicht gefunden.")
 
@@ -346,7 +346,7 @@ if not st.session_state.quant_results:
             with open(default_quant_file, "rb") as f:
                 quant_results_default = pickle.load(f)
             st.session_state.quant_results = quant_results_default
-            st.info("Standard quantitative Analyseergebnisse aus 'quant_results.pkl' geladen.")
+            # st.info("Standard quantitative Analyseergebnisse aus 'quant_results.pkl' geladen.")
         except Exception as e:
             st.error(f"Fehler beim Laden der quantitativen Ergebnisse: {e}")
     else:
