@@ -446,12 +446,8 @@ elif page == "Quantitative Analyse":
         video_df = st.session_state.video_df
         comments_df = st.session_state.comments_df
         
-        st.subheader("Einstellungen und Analyse-Trigger")
-        with st.expander("Engagement Score Einstellungen"):
-            view_weight = st.number_input("Gewichtung für Views", min_value=0, value=1)
-            like_weight = st.number_input("Gewichtung für Likes", min_value=0, value=2)
-            comment_weight = st.number_input("Gewichtung für Kommentare", min_value=0, value=3)
-        
+        st.subheader("Einstellungen")
+
         with st.expander("Wordcloud Einstellungen"):
             custom_stopwords = st.text_input("Zusätzliche Stopwords (getrennt durch Komma)", value="unbubble, shorts, 13 Fragen, Sollten, trifft, Sags, Sag's, sag, Fragen, unfiltered, live, 13")
             min_word_length = st.number_input("Minimale Wortlänge", min_value=1, value=2)
@@ -478,29 +474,29 @@ elif page == "Quantitative Analyse":
 
 
         
-        if st.button("Starte Quantitative Analyse"):
-            # Use preloaded sentiment analysis if available; otherwise, perform it.
-            if (st.session_state.sentiment_analysis is
-                isinstance(st.session_state.sentiment_analysis, pd.DataFrame) and 
-                "sentiment" in st.session_state.sentiment_analysis.columns):
-                comments_df_with_sentiment = st.session_state.sentiment_analysis
-            else:
-                comments_df_with_sentiment = perform_sentiment_analysis(comments_df)
-                st.session_state.sentiment_analysis = comments_df_with_sentiment
-            sentiment_counts = comments_df_with_sentiment['sentiment'].value_counts().reset_index()
-            sentiment_counts.columns = ['Sentiment', 'Anzahl']
-            fig_eng = plot_engagement(video_df) if all(col in video_df.columns for col in ['Views', 'Likes', 'Kommentare']) else None
-            top10_df = rank_top_videos(video_df, view_weight, like_weight, comment_weight) if all(col in video_df.columns for col in ['Views', 'Likes', 'Kommentare']) else pd.DataFrame()
+        # if st.button("Starte Quantitative Analyse"):
+        #     # Use preloaded sentiment analysis if available; otherwise, perform it.
+        #     if (st.session_state.sentiment_analysis is
+        #         isinstance(st.session_state.sentiment_analysis, pd.DataFrame) and 
+        #         "sentiment" in st.session_state.sentiment_analysis.columns):
+        #         comments_df_with_sentiment = st.session_state.sentiment_analysis
+        #     else:
+        #         comments_df_with_sentiment = perform_sentiment_analysis(comments_df)
+        #         st.session_state.sentiment_analysis = comments_df_with_sentiment
+        #     sentiment_counts = comments_df_with_sentiment['sentiment'].value_counts().reset_index()
+        #     sentiment_counts.columns = ['Sentiment', 'Anzahl']
+        #     fig_eng = plot_engagement(video_df) if all(col in video_df.columns for col in ['Views', 'Likes', 'Kommentare']) else None
+        #     top10_df = rank_top_videos(video_df) if all(col in video_df.columns for col in ['Views', 'Likes', 'Kommentare']) else pd.DataFrame()
             
-            st.session_state.quant_results = {
-                "sentiment_df": comments_df_with_sentiment.copy(),
-                "sentiment_counts": sentiment_counts,
-                "engagement_fig": fig_eng,
-                "top10_df": top10_df,
-                "wordcloud_title_fig": st.session_state.get("wordcloud_title_fig", None),
-                "wordcloud_comments_fig": st.session_state.get("wordcloud_comments_fig", None)
-            }
-            st.success("Quantitative Analyse abgeschlossen.")
+        #     st.session_state.quant_results = {
+        #         "sentiment_df": comments_df_with_sentiment.copy(),
+        #         "sentiment_counts": sentiment_counts,
+        #         "engagement_fig": fig_eng,
+        #         "top10_df": top10_df,
+        #         "wordcloud_title_fig": st.session_state.get("wordcloud_title_fig", None),
+        #         "wordcloud_comments_fig": st.session_state.get("wordcloud_comments_fig", None)
+        #     }
+        #     st.success("Quantitative Analyse abgeschlossen.")
         
         if st.session_state.quant_results:
             st.subheader("Ergebnisse der Sentiment-Analyse")
