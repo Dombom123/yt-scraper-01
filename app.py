@@ -36,7 +36,6 @@ def load_csv(file):
         st.error(f"Fehler beim Laden der CSV-Datei: {e}")
         return None
 
-# --- Missing load_pickle function definition ---
 @st.cache_data(show_spinner=False)
 def load_pickle(file_path):
     """Lädt einen Pickle-Datensatz von file_path."""
@@ -131,36 +130,23 @@ def prepare_comments_data(file):
 # Analysis Functions and Customizable Components
 # =============================================================================
 
-
-
 def generate_wordcloud(text, custom_stopwords="", min_word_length=0):
     """
     Generates a WordCloud using German stopwords and additional custom stopwords.
     Returns the WordCloud object, the set of active stopwords, and the filtered text.
     """
-    # 1️⃣ Load German stopwords
     german_stopwords = set(nltk_stopwords.words("german"))
-
-    # 2️⃣ Add custom stopwords (ensuring lowercase for case-insensitivity)
     additional_stopwords = set([w.strip().lower() for w in custom_stopwords.split(",") if w.strip()])
     active_stopwords = german_stopwords.union(additional_stopwords)
-
-    # 3️⃣ Clean and tokenize text
-    cleaned_text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
-    words = cleaned_text.split()  # Tokenize by whitespace
-
-    # 4️⃣ Filter words: remove stopwords and apply minimum word length
+    cleaned_text = re.sub(r'[^\w\s]', '', text)
+    words = cleaned_text.split()
     filtered_words = [
         word for word in words
         if len(word) >= min_word_length and word.lower() not in active_stopwords
     ]
     filtered_text = " ".join(filtered_words)
-
-    # 5️⃣ Generate the WordCloud
     wc = WordCloud(width=800, height=400, background_color='white').generate(filtered_text)
-
-    return wc, active_stopwords, filtered_text  # Returning active stopwords for debug display
-
+    return wc, active_stopwords, filtered_text
 
 def perform_sentiment_analysis(comments_df):
     sia = SentimentIntensityAnalyzer()
@@ -227,13 +213,13 @@ def generate_llm_prompt(text, video_title="", analysis_mode="default", keywords=
         prompt = (
             f"Bitte führe eine umfassende qualitative Analyse der folgenden Video-Kommentare aus allen Videos durch. "
             f"Es wurden {comment_count} Kommentare gefunden, die mit den Schlüsselwörtern '{keywords_str}' gefiltert wurden. "
-            f"Analysiere die wichtigsten Themen, Stimmungen und Erkenntnisse und fasse sie prägnant zusammen.Antworte nicht zu ausgeglichen, sondern mit eindeutigen und klar benannten Ergebnissen. "
+            f"Analysiere die wichtigsten Themen, Stimmungen und Erkenntnisse und fasse sie prägnant zusammen. Antworte nicht zu ausgeglichen, sondern mit eindeutigen und klar benannten Ergebnissen. "
             f"Hier sind die Kommentare:\n\n{text}\n\nZusammenfassung:"
         )
     else:
         prompt = (
             f"Bitte führe eine qualitative Analyse der folgenden Video-Kommentare durch. "
-            f"Das Video heißt '{video_title}'. Fasse die wichtigsten Themen, Stimmungen und Erkenntnisse zusammen.Antworte nicht zu ausgeglichen, sondern mit eindeutigen und klar benannten Ergebnissen. "
+            f"Das Video heißt '{video_title}'. Fasse die wichtigsten Themen, Stimmungen und Erkenntnisse zusammen. Antworte nicht zu ausgeglichen, sondern mit eindeutigen und klar benannten Ergebnissen. "
             f"Hier sind die Kommentare:\n\n{text}\n\nZusammenfassung:"
         )
     return prompt
@@ -325,7 +311,7 @@ def compare_sentiments_to_views(video_df, comments_df):
 st.title("Analyse des YouTube-Kanals 'unbubble'")
 
 # -----------------------------------------------------------------------------
-# Initialize session state variables if not already set
+# Session State Initialization
 # -----------------------------------------------------------------------------
 if 'video_df' not in st.session_state:
     st.session_state.video_df = None
@@ -341,31 +327,30 @@ if 'wordcloud_comments_fig' not in st.session_state:
     st.session_state.wordcloud_comments_fig = None
 
 # -----------------------------------------------------------------------------
-# Default Data Loading Block
+# Pre-calculate and load standard data files
 # -----------------------------------------------------------------------------
+default_video_file = "youtube_data/videos_detailed_with_comments.csv"
 if st.session_state.video_df is None:
-    default_video_file = "youtube_data/videos_detailed_with_comments.csv"
     if os.path.exists(default_video_file):
         video_df_default = prepare_video_data(default_video_file)
         if video_df_default is not None:
             st.session_state.video_df = video_df_default
             st.info("Standard Video-Metadaten aus 'videos_detailed_with_comments.csv' geladen.")
     else:
-        st.info("Kein Standard-Video-Datensatz gefunden. Bitte lade eigene Daten hoch.")
+        st.error("Standard Video-Datensatz nicht gefunden.")
 
+default_comments_file = "youtube_data/comments_with_sentiment.csv"
 if st.session_state.comments_df is None:
-    default_comments_file = "youtube_data/comments_with_sentiment.csv"
     if os.path.exists(default_comments_file):
         comments_df_default = prepare_comments_data(default_comments_file)
         if comments_df_default is not None:
             st.session_state.comments_df = comments_df_default
             st.info("Standard Kommentardaten aus 'comments_with_sentiment.csv' geladen.")
     else:
-        st.info("Kein Standard-Kommentardatensatz gefunden. Bitte lade eigene Daten hoch.")
+        st.error("Standard Kommentardatensatz nicht gefunden.")
 
-# Load default quantitative results (pickle) if available.
+default_quant_file = "youtube_data/quant_results.pkl"
 if not st.session_state.quant_results:
-    default_quant_file = "youtube_data/quant_results.pkl"
     if os.path.exists(default_quant_file):
         try:
             with open(default_quant_file, "rb") as f:
@@ -377,271 +362,121 @@ if not st.session_state.quant_results:
     else:
         st.info("Kein Standard quantitativer Ergebnis-Datensatz gefunden.")
 
-# Instead of loading sentiment_analysis separately from the same pickle,
-# we now rely on quant_results (which should include sentiment analysis data, e.g., under key 'sentiment_df').
 if st.session_state.sentiment_analysis is None and st.session_state.quant_results:
     if "sentiment_df" in st.session_state.quant_results and isinstance(st.session_state.quant_results["sentiment_df"], pd.DataFrame):
         st.session_state.sentiment_analysis = st.session_state.quant_results["sentiment_df"]
         st.info("Sentiment-Analyse aus quant_results geladen.")
 
 # -----------------------------------------------------------------------------
-# Sidebar Navigation
+# Sidebar Navigation – Two Pages Only
 # -----------------------------------------------------------------------------
 page = st.sidebar.selectbox("Navigation", 
-    ["Daten Upload & Vorbereitung", "Quantitative Analyse", "Qualitative Analyse", "Interaktives Dashboard"]
+    ["Dashboard & Metrics", "LLM Comment Analysis"]
 )
 
-# ----- Seite 1: Daten Upload & Vorbereitung -----
-if page == "Daten Upload & Vorbereitung":
-    st.header("Daten Upload und Vorbereitung")
-    st.write("Lade die CSV-Dateien mit den Video-Metadaten (z. B. `videos.csv`) und Kommentaren (z. B. `comments.csv`) hoch.")
-
-    if st.session_state.video_df is not None:
-        st.info("Standard Video-Daten wurden bereits geladen.")
-        st.subheader("Vorschau Video-Metadaten")
-        st.dataframe(st.session_state.video_df.head())
-        st.subheader("Datenzusammenfassung")
-        st.dataframe(data_summary(st.session_state.video_df))
-    if st.session_state.comments_df is not None:
-        st.info("Standard Kommentardaten wurden bereits geladen.")
-        st.subheader("Vorschau Kommentardaten")
-        st.dataframe(st.session_state.comments_df.head())
-        st.subheader("Datenzusammenfassung")
-        st.dataframe(data_summary(st.session_state.comments_df))
-    
-    video_file = st.file_uploader("Video-Metadaten CSV", type=["csv"], key="video")
-    comments_file = st.file_uploader("Kommentare CSV", type=["csv"], key="comments")
-    
-    if video_file is not None:
-        video_df = prepare_video_data(video_file)
-        if video_df is not None:
-            st.session_state.video_df = video_df
-            st.subheader("Vorschau Video-Metadaten (Neue Upload)")
-            st.dataframe(video_df.head())
-            st.subheader("Datenzusammenfassung")
-            st.dataframe(data_summary(video_df))
-            st.success("Video-Daten erfolgreich geladen, validiert und bereinigt.")
-            csv_video = video_df.to_csv(index=False).encode("utf-8")
-            st.download_button("Download Video CSV", csv_video, "video_data.csv", "text/csv")
-    
-    if comments_file is not None:
-        comments_df = prepare_comments_data(comments_file)
-        if comments_df is not None:
-            st.session_state.comments_df = comments_df
-            st.subheader("Vorschau Kommentardaten (Neue Upload)")
-            st.dataframe(comments_df.head())
-            st.subheader("Datenzusammenfassung")
-            st.dataframe(data_summary(comments_df))
-            st.success("Kommentardaten erfolgreich geladen, validiert und bereinigt.")
-            csv_comments = comments_df.to_csv(index=False).encode("utf-8")
-            st.download_button("Download Kommentare CSV", csv_comments, "comments_data.csv", "text/csv")
-
-# ----- Seite 2: Quantitative Analyse -----
-elif page == "Quantitative Analyse":
-    st.header("Quantitative Analyse")
-    
+# ----- Page: Dashboard & Metrics -----
+if page == "Dashboard & Metrics":
+    st.header("Dashboard & Metrics")
     if st.session_state.video_df is None or st.session_state.comments_df is None:
-        st.warning("Bitte zuerst im Bereich 'Daten Upload & Vorbereitung' die erforderlichen Daten hochladen.")
+        st.warning("Standard-Daten wurden nicht geladen.")
     else:
         video_df = st.session_state.video_df
         comments_df = st.session_state.comments_df
         
-        st.subheader("Einstellungen")
-
-        with st.expander("Wordcloud Einstellungen"):
-            custom_stopwords = st.text_input("Zusätzliche Stopwords (getrennt durch Komma)", value="unbubble, shorts, 13 Fragen, Sollten, trifft, Sags, Sag's, sag, Fragen, unfiltered, live, 13")
-            min_word_length = st.number_input("Minimale Wortlänge", min_value=1, value=2)
-
-    
-
-            # 1️⃣ Update WordCloud for Video Titles
-            if st.button("🔄 Wordcloud für Video-Titel aktualisieren"):
-                st.session_state.pop('wordcloud_title_fig', None)  # Clear previous figure
-                if "Titel" in video_df.columns:
-                    title_text = " ".join(video_df['Titel'].dropna().astype(str))
-                    wc_title, active_stopwords_title, filtered_text = generate_wordcloud(title_text, custom_stopwords, min_word_length)
-                    
-                    fig_wc_title, ax_title = plt.subplots(figsize=(10, 5))
-                    ax_title.imshow(wc_title, interpolation="bilinear")
-                    ax_title.axis("off")
-                    st.session_state['wordcloud_title_fig'] = fig_wc_title
-                    
-                    st.pyplot(fig_wc_title)  # Immediate render
-                    st.write(f"🚩 Aktive Stopwords (Titel): {sorted(active_stopwords_title)}")
-                    st.write(f"🚩 Filtered Text (Titel): {filtered_text}")
-                    st.success("✅ Wordcloud für Video-Titel wurde aktualisiert!")
-
-
-
+        # Additional KPIs and Metrics
+        total_videos = len(video_df)
+        total_views = video_df['Views'].sum() if 'Views' in video_df.columns else 0
+        total_likes = video_df['Likes'].sum() if 'Likes' in video_df.columns else 0
+        total_comments = video_df['Kommentare'].sum() if 'Kommentare' in video_df.columns else 0
+        avg_views = total_views / total_videos if total_videos > 0 else 0
+        avg_likes = total_likes / total_videos if total_videos > 0 else 0
+        avg_comments = total_comments / total_videos if total_videos > 0 else 0
         
-        if st.button("Quantitative Analyse erneut starten (Ergebnisse sind bereits gespeichert)"):
-            # Use preloaded sentiment analysis if available; otherwise, perform it.
-            if (st.session_state.sentiment_analysis is
-                isinstance(st.session_state.sentiment_analysis, pd.DataFrame) and 
-                "sentiment" in st.session_state.sentiment_analysis.columns):
-                comments_df_with_sentiment = st.session_state.sentiment_analysis
-            else:
-                comments_df_with_sentiment = perform_sentiment_analysis(comments_df)
-                st.session_state.sentiment_analysis = comments_df_with_sentiment
-            sentiment_counts = comments_df_with_sentiment['sentiment'].value_counts().reset_index()
-            sentiment_counts.columns = ['Sentiment', 'Anzahl']
-            fig_eng = plot_engagement(video_df) if all(col in video_df.columns for col in ['Views', 'Likes', 'Kommentare']) else None
-            top10_df = rank_top_videos(video_df) if all(col in video_df.columns for col in ['Views', 'Likes', 'Kommentare']) else pd.DataFrame()
-            
-            st.session_state.quant_results = {
-                "sentiment_df": comments_df_with_sentiment.copy(),
-                "sentiment_counts": sentiment_counts,
-                "engagement_fig": fig_eng,
-                "top10_df": top10_df,
-                "wordcloud_title_fig": st.session_state.get("wordcloud_title_fig", None),
-                "wordcloud_comments_fig": st.session_state.get("wordcloud_comments_fig", None)
-            }
-            st.success("Quantitative Analyse abgeschlossen.")
+        # Calculate engagement score (example: Views + 2*Likes + 3*Comments)
+        video_df = video_df.copy()
+        video_df['engagement_score'] = video_df['Views'] + 2 * video_df['Likes'] + 3 * video_df['Kommentare']
+        avg_engagement = video_df['engagement_score'].mean()
+        top_videos = rank_top_videos(video_df)
         
-        if st.session_state.quant_results:
-            st.subheader("Ergebnisse der Sentiment-Analyse")
-            sentiment_counts = st.session_state.quant_results.get("sentiment_counts")
-            if sentiment_counts is not None:
-                fig_sent = px.bar(sentiment_counts, x='Sentiment', y='Anzahl', title="Verteilung der Sentiments")
-                st.plotly_chart(fig_sent)
-            
-            st.subheader("Wordcloud der Video-Titel")
-            fig_wc_title = st.session_state.quant_results.get("wordcloud_title_fig")
-            if fig_wc_title is not None:
-                st.pyplot(fig_wc_title)
-                download_figure(fig_wc_title, "video_titles_wordcloud.png")
-            
+        # Ensure sentiment analysis is performed
+        if st.session_state.sentiment_analysis is None or not isinstance(st.session_state.sentiment_analysis, pd.DataFrame):
+            comments_df = perform_sentiment_analysis(comments_df)
+            st.session_state.sentiment_analysis = comments_df.copy()
+        else:
+            comments_df = st.session_state.sentiment_analysis
+        sentiment_counts = comments_df['sentiment'].value_counts()
+        
+        st.subheader("Key Performance Indicators (KPIs)")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Videos", total_videos)
+        col2.metric("Total Views", total_views)
+        col3.metric("Total Likes", total_likes)
+        col4.metric("Total Comments", total_comments)
+        
+        col5, col6, col7 = st.columns(3)
+        col5.metric("Avg. Views", f"{avg_views:.0f}")
+        col6.metric("Avg. Likes", f"{avg_likes:.0f}")
+        col7.metric("Avg. Comments", f"{avg_comments:.0f}")
+        
+        st.metric("Avg. Engagement Score", f"{avg_engagement:.0f}")
+        
+        st.subheader("Sentiment Analysis")
+        st.write("Sentiment Counts:")
+        # Get the value counts and assign a name to the count values
+        sentiment_counts = comments_df['sentiment'].value_counts()
+        sentiment_counts.name = 'count'
 
-            st.subheader("Engagement Analyse")
-            fig_eng = st.session_state.quant_results.get("engagement_fig")
-            if fig_eng is not None:
-                st.plotly_chart(fig_eng)
-            
-            st.subheader("Top 10 Videos nach Engagement")
-            top10_df = st.session_state.quant_results.get("top10_df")
-            if not top10_df.empty:
-                st.dataframe(top10_df)
-                csv_top10 = top10_df.to_csv(index=False).encode("utf-8")
-                st.download_button("Download Top 10 Videos CSV", csv_top10, "top10_videos.csv", "text/csv")
-        
-        st.markdown("---")
-        st.subheader("Erweiterte Quantitative Analysen")
-        with st.expander("Erweiterte Filteroptionen"):
-            username_filter = st.text_input("Filter nach Benutzername (User-ID)", value="")
-            if 'Datum' in comments_df.columns and not comments_df['Datum'].isnull().all():
-                default_start = comments_df['Datum'].min().date()
-                default_end = comments_df['Datum'].max().date()
-                date_range = st.date_input("Filter nach Datum (Kommentare)", value=(default_start, default_end))
-            else:
-                date_range = None
-            if date_range and isinstance(date_range, (tuple, list)):
-                start_date, end_date = date_range
-            else:
-                start_date = end_date = None
-            apply_filter = st.button("Filter anwenden", key="apply_filter_extended")
-        
-        if apply_filter:
-            filtered_comments_extended = filter_comments(comments_df, username_filter, start_date, end_date)
-            st.write(f"Nach Filterung verbleiben {len(filtered_comments_extended)} Kommentare.")
-            
-            st.subheader("Kommentare pro Account")
-            comments_per_account = analyze_comments_per_account(filtered_comments_extended)
-            st.dataframe(comments_per_account)
-            fig_comments_account = px.bar(comments_per_account.head(10), x='User-ID', y='Kommentaranzahl', title="Top 10 Konten nach Kommentaranzahl")
-            st.plotly_chart(fig_comments_account)
-            
-            st.subheader("Sentiment pro Account")
-            sentiments_account = analyze_sentiments_per_account(filtered_comments_extended)
-            st.dataframe(sentiments_account)
-            if not sentiments_account.empty:
-                sentiments_account['total'] = sentiments_account.get('Positiv', 0) + sentiments_account.get('Negativ', 0) + sentiments_account.get('Neutral', 0)
-                top_accounts = sentiments_account.sort_values('total', ascending=False).head(10)
-                fig_sentiments = px.bar(top_accounts, x='User-ID', y=['Positiv', 'Negativ', 'Neutral'],
-                                        barmode='group', title="Sentiment Verteilung pro Account (Top 10)")
-                st.plotly_chart(fig_sentiments)
-            
-            st.subheader("Vergleich von Sentiment und Views pro Video")
-            video_sentiment_view = compare_sentiments_to_views(video_df, comments_df)
-            st.dataframe(video_sentiment_view[['Video-ID', 'Titel', 'Views', 'Positiv', 'Negativ', 'Neutral', 
-                                                 'Positiv/Views', 'Negativ/Views']])
-            chart_option = st.selectbox("Darstellung wählen", ["Bar Chart", "Wordcloud"], key="chart_option")
-            if chart_option == "Bar Chart":
-                fig_video = px.bar(video_sentiment_view.head(10), x='Titel', y=['Positiv/Views', 'Negativ/Views'], 
-                                   barmode='group', title="Sentiment zu Views Verhältnis (Top 10 Videos)")
-                st.plotly_chart(fig_video)
-            else:
-                video_titles = " ".join(video_sentiment_view['Titel'].dropna().astype(str))
-                wc_video = generate_wordcloud(video_titles, custom_stopwords="", min_word_length=2)
-                fig_wc_video, ax_wc_video = plt.subplots(figsize=(10, 5))
-                ax_wc_video.imshow(wc_video, interpolation="bilinear")
-                ax_wc_video.axis("off")
-                plt.close(fig_wc_video)
-                st.pyplot(fig_wc_video)
-                download_figure(fig_wc_video, "video_sentiment_wordcloud.png")
-        
-        st.markdown("---")
-        st.subheader("Zusätzliche Analysen")
-        with st.expander("Weitere Analyse Optionen"):
-            extra_option = st.selectbox("Wählen Sie eine zusätzliche Analyse", 
-                                         options=["Top 10 Commenters", "Kommentare pro Video", "Durchschnittlicher Sentiment Score pro Video", "Korrelationsmatrix (Heatmap)", "Verteilung der Likes pro Video"],
-                                         key="extra_analysis")
-            if extra_option == "Top 10 Commenters":
-                top_commenters = analyze_comments_per_account(comments_df)
-                st.dataframe(top_commenters.head(10))
-                fig_top_commenters = px.bar(top_commenters.head(10), x='User-ID', y='Kommentaranzahl', title="Top 10 Commenters")
-                st.plotly_chart(fig_top_commenters)
-            elif extra_option == "Kommentare pro Video":
-                comments_per_video = comments_df.groupby('Video-ID').size().reset_index(name='Anzahl Kommentare')
-                if 'Titel' in video_df.columns:
-                    comments_per_video = comments_per_video.merge(video_df[['Video-ID','Titel']], on='Video-ID', how='left')
-                    fig_comments_video = px.bar(comments_per_video.sort_values("Anzahl Kommentare", ascending=False).head(10), 
-                                                x='Titel', y='Anzahl Kommentare', 
-                                                title="Top 10 Videos nach Kommentaranzahl")
-                else:
-                    fig_comments_video = px.bar(comments_per_video.sort_values("Anzahl Kommentare", ascending=False).head(10), 
-                                                x='Video-ID', y='Anzahl Kommentare', 
-                                                title="Top 10 Videos nach Kommentaranzahl")
-                st.dataframe(comments_per_video.sort_values("Anzahl Kommentare", ascending=False).head(10))
-                st.plotly_chart(fig_comments_video)
-            elif extra_option == "Durchschnittlicher Sentiment Score pro Video":
-                avg_sentiment = comments_df.groupby('Video-ID')['sentiment_score'].mean().reset_index(name='Durchschnittlicher Sentiment Score')
-                if 'Titel' in video_df.columns:
-                    avg_sentiment = avg_sentiment.merge(video_df[['Video-ID','Titel']], on='Video-ID', how='left')
-                    fig_avg_sentiment = px.bar(avg_sentiment.sort_values("Durchschnittlicher Sentiment Score", ascending=False).head(10), 
-                                               x='Titel', y='Durchschnittlicher Sentiment Score', 
-                                               title="Top 10 Videos nach Durchschnittlichem Sentiment Score")
-                else:
-                    fig_avg_sentiment = px.bar(avg_sentiment.sort_values("Durchschnittlicher Sentiment Score", ascending=False).head(10), 
-                                               x='Video-ID', y='Durchschnittlicher Sentiment Score', 
-                                               title="Top 10 Videos nach Durchschnittlichem Sentiment Score")
-                st.dataframe(avg_sentiment.sort_values("Durchschnittlicher Sentiment Score", ascending=False).head(10))
-                st.plotly_chart(fig_avg_sentiment)
-            elif extra_option == "Korrelationsmatrix (Heatmap)":
-                numeric_cols = video_df.select_dtypes(include=[np.number])
-                corr = numeric_cols.corr()
-                fig_heatmap = px.imshow(corr, text_auto=True, title="Korrelationsmatrix der Video-Metriken")
-                st.plotly_chart(fig_heatmap)
-            elif extra_option == "Verteilung der Likes pro Video":
-                fig_likes_hist = px.histogram(video_df, x='Likes', nbins=20, title="Verteilung der Likes pro Video")
-                st.plotly_chart(fig_likes_hist)
-        
-        st.subheader("Ergebnisse speichern/laden")
-        if st.session_state.quant_results:
-            pickled_results = save_quantitative_results(st.session_state.quant_results)
-            st.download_button("Download Quantitative Ergebnisse", data=pickled_results, file_name="quant_results.pkl", mime="application/octet-stream")
-        uploaded_quant = st.file_uploader("Lade zuvor gespeicherte quantitative Ergebnisse", type=["pkl"], key="quant_load")
-        if uploaded_quant is not None:
-            loaded_results = load_quantitative_results(uploaded_quant)
-            if loaded_results:
-                st.session_state.quant_results = loaded_results
-                st.success("Quantitative Ergebnisse erfolgreich geladen.")
+        # Reset the index to turn it into a DataFrame and rename columns appropriately
+        sentiment_counts_df = sentiment_counts.reset_index()
+        sentiment_counts_df.rename(columns={'index': 'sentiment'}, inplace=True)
 
-# ----- Seite 3: Qualitative Analyse -----
-elif page == "Qualitative Analyse":
-    st.header("Qualitative Analyse mittels GPT-4")
-    
+        st.write(sentiment_counts_df)
+
+        # Use the new column names in the bar chart
+        fig_sent = px.bar(
+            sentiment_counts_df,
+            x='sentiment',
+            y='count',
+            labels={'sentiment': 'Sentiment', 'count': 'Count'},
+            title="Sentiment Distribution"
+        )
+        st.plotly_chart(fig_sent)
+        
+        st.subheader("Video Titles Wordcloud")
+        custom_stopwords = st.text_input("Zusätzliche Stopwords (getrennt durch Komma)", 
+                                         value="unbubble, shorts, 13 Fragen, Sollten, trifft, Sags, Sag's, sag, Fragen, unfiltered, live, 13", 
+                                         key="wc_stopwords")
+        min_word_length = st.number_input("Minimale Wortlänge", min_value=1, value=2, key="wc_min_length")
+        if st.button("Generate Wordcloud for Video Titles", key="wc_generate"):
+            title_text = " ".join(video_df['Titel'].dropna().astype(str))
+            wc_title, active_stopwords_title, filtered_text = generate_wordcloud(title_text, custom_stopwords, min_word_length)
+            fig_wc_title, ax_title = plt.subplots(figsize=(10, 5))
+            ax_title.imshow(wc_title, interpolation="bilinear")
+            ax_title.axis("off")
+            st.pyplot(fig_wc_title)
+            st.write("Active Stopwords:", sorted(active_stopwords_title))
+        
+        st.subheader("Engagement Analysis")
+        fig_eng = plot_engagement(video_df)
+        st.plotly_chart(fig_eng)
+        
+        st.subheader("Top 10 Videos by Engagement")
+        st.dataframe(top_videos)
+        csv_top10 = top_videos.to_csv(index=False).encode("utf-8")
+        st.download_button("Download Top 10 Videos CSV", csv_top10, "top10_videos.csv", "text/csv")
+        
+        st.subheader("Daten Export")
+        csv_video = video_df.to_csv(index=False).encode("utf-8")
+        csv_comments = comments_df.to_csv(index=False).encode("utf-8")
+        col_exp1, col_exp2 = st.columns(2)
+        col_exp1.download_button("Download Video CSV", csv_video, "video_data.csv", "text/csv")
+        col_exp2.download_button("Download Kommentare CSV", csv_comments, "comments_data.csv", "text/csv")
+
+# ----- Page: LLM Comment Analysis -----
+elif page == "LLM Comment Analysis":
+    st.header("LLM Comment Analysis")
     if st.session_state.video_df is None or st.session_state.comments_df is None:
-        st.warning("Bitte zuerst im Bereich 'Daten Upload & Vorbereitung' die Daten hochladen.")
+        st.warning("Standard-Daten wurden nicht geladen.")
     else:
         video_df = st.session_state.video_df
         comments_df = st.session_state.comments_df
@@ -679,10 +514,9 @@ elif page == "Qualitative Analyse":
         else:
             custom_prompt_all = None
         if st.button("Analyse ALLE Kommentare mit GPT-4", key="llm_all_comments"):
-            if custom_prompt_all is not None:
-                used_prompt_all = custom_prompt_all
-            else:
-                used_prompt_all = generate_llm_prompt(all_comments_input, selected_video_title, "selected", [], comment_count=len(video_comments))
+            used_prompt_all = custom_prompt_all if custom_prompt_all is not None else generate_llm_prompt(
+                all_comments_input, selected_video_title, "selected", [], comment_count=len(video_comments)
+            )
             result_all = perform_llm_analysis(
                 all_comments_input,
                 video_title=selected_video_title,
@@ -695,8 +529,8 @@ elif page == "Qualitative Analyse":
             st.write(result_all)
             download_text = format_download_result("Analyse aller Kommentare", used_prompt_all, all_comments_input, result_all)
             st.download_button("Download vollständige Video GPT-4 Ergebnisse", download_text, "llm_video_all_analysis.txt", "text/plain")
-        st.markdown("---")
         
+        st.markdown("---")
         st.subheader("Filterung (optional)")
         filter_mode = st.radio("Filtermodus auswählen", options=["Keyword", "Username"], index=0)
         if filter_mode == "Keyword":
@@ -720,7 +554,7 @@ elif page == "Qualitative Analyse":
                 filtered_comments = video_comments[video_comments['User-ID'].fillna('').str.lower().str.contains(username_filter_qual.lower())]
             else:
                 filtered_comments = video_comments
-
+        
         st.write(f"Anzahl der gefilterten Kommentare: {len(filtered_comments)}")
         st.subheader("Gefilterte Kommentare zur Analyse")
         if not filtered_comments.empty:
@@ -760,10 +594,9 @@ elif page == "Qualitative Analyse":
                 )
                 filtered_input = project_info_filtered + "\n\n" + filtered_comments_with_metrics
                 keywords_used = keywords if filter_mode == "Keyword" else []
-                if custom_prompt_selected is not None:
-                    used_prompt_selected = custom_prompt_selected
-                else:
-                    used_prompt_selected = generate_llm_prompt(filtered_input, selected_video_title, "selected", keywords_used, comment_count=len(filtered_comments))
+                used_prompt_selected = custom_prompt_selected if custom_prompt_selected is not None else generate_llm_prompt(
+                    filtered_input, selected_video_title, "selected", keywords_used, comment_count=len(filtered_comments)
+                )
                 llm_result = perform_llm_analysis(
                     filtered_input, 
                     video_title=selected_video_title, 
@@ -843,10 +676,9 @@ elif page == "Qualitative Analyse":
                 )
                 global_input = project_info_global + "\n\n" + global_comments_with_metrics
                 keywords_used_global = global_keywords if global_filter_mode == "Keyword" else []
-                if custom_prompt_global is not None:
-                    used_prompt_global = custom_prompt_global
-                else:
-                    used_prompt_global = generate_llm_prompt(global_input, "Alle Videos", "global", keywords_used_global, comment_count=len(all_filtered_comments))
+                used_prompt_global = custom_prompt_global if custom_prompt_global is not None else generate_llm_prompt(
+                    global_input, "Alle Videos", "global", keywords_used_global, comment_count=len(all_filtered_comments)
+                )
                 global_llm_result = perform_llm_analysis(
                     global_input, 
                     video_title="Alle Videos", 
@@ -861,38 +693,3 @@ elif page == "Qualitative Analyse":
                 st.download_button("Download globale GPT-4 Ergebnisse", download_text, "llm_global_analysis.txt", "text/plain")
             else:
                 st.write("Keine passenden Kommentare gefunden.")
-                
-# ----- Seite 4: Interaktives Dashboard -----
-elif page == "Interaktives Dashboard":
-    st.header("Interaktives Dashboard")
-    
-    if st.session_state.video_df is None or st.session_state.comments_df is None:
-        st.warning("Bitte zuerst im Bereich 'Daten Upload & Vorbereitung' die Daten hochladen.")
-    else:
-        video_df = st.session_state.video_df
-        comments_df = st.session_state.comments_df
-        
-        st.subheader("KPI Übersicht")
-        col1, col2, col3 = st.columns(3)
-        total_views = video_df['Views'].sum() if 'Views' in video_df.columns else 0
-        total_likes = video_df['Likes'].sum() if 'Likes' in video_df.columns else 0
-        total_comments = video_df['Kommentare'].sum() if 'Kommentare' in video_df.columns else 0
-        col1.metric("Gesamt Views", total_views)
-        col2.metric("Gesamt Likes", total_likes)
-        col3.metric("Gesamt Kommentare", total_comments)
-        
-        st.subheader("Sentiment Verteilung")
-        if 'sentiment' in comments_df.columns:
-            sentiment_counts = comments_df['sentiment'].value_counts().reset_index()
-            sentiment_counts.columns = ['Sentiment', 'Anzahl']
-            fig_pie = px.pie(sentiment_counts, names='Sentiment', values='Anzahl', title="Sentiment Anteil")
-            st.plotly_chart(fig_pie)
-        else:
-            st.write("Die Sentiment-Analyse wurde noch nicht durchgeführt.")
-        
-        st.subheader("Daten Export")
-        csv_video = video_df.to_csv(index=False).encode("utf-8")
-        csv_comments = comments_df.to_csv(index=False).encode("utf-8")
-        col_download1, col_download2 = st.columns(2)
-        col_download1.download_button("Download Video CSV", csv_video, "video_data.csv", "text/csv")
-        col_download2.download_button("Download Kommentare CSV", csv_comments, "comments_data.csv", "text/csv")
