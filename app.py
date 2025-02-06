@@ -365,7 +365,7 @@ if not st.session_state.quant_results:
 if st.session_state.sentiment_analysis is None and st.session_state.quant_results:
     if "sentiment_df" in st.session_state.quant_results and isinstance(st.session_state.quant_results["sentiment_df"], pd.DataFrame):
         st.session_state.sentiment_analysis = st.session_state.quant_results["sentiment_df"]
-        st.info("Sentiment-Analyse aus quant_results geladen.")
+        # st.info("Sentiment-Analyse aus quant_results geladen.")
 
 # -----------------------------------------------------------------------------
 # Sidebar Navigation – Two Pages Only
