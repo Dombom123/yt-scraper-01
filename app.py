@@ -220,25 +220,25 @@ def generate_llm_prompt(text, video_title="", analysis_mode="default", keywords=
         prompt = (
             f"Bitte führe eine detaillierte qualitative Analyse der folgenden Video-Kommentare durch. "
             f"Das Video heißt '{video_title}'. Es wurden {comment_count} Kommentare gefunden, die basierend auf den Schlüsselwörtern '{keywords_str}' gefiltert wurden. "
-            f"Analysiere die wichtigsten Themen, Stimmungen und Erkenntnisse und fasse sie prägnant zusammen. "
+            f"Analysiere die wichtigsten Themen, Stimmungen und Erkenntnisse und fasse sie prägnant zusammen. Antworte nicht zu ausgeglichen, sondern mit eindeutigen und klar benannten Ergebnissen. "
             f"Hier sind die Kommentare:\n\n{text}\n\nZusammenfassung:"
         )
     elif analysis_mode == "global":
         prompt = (
             f"Bitte führe eine umfassende qualitative Analyse der folgenden Video-Kommentare aus allen Videos durch. "
             f"Es wurden {comment_count} Kommentare gefunden, die mit den Schlüsselwörtern '{keywords_str}' gefiltert wurden. "
-            f"Analysiere die wichtigsten Themen, Stimmungen und Erkenntnisse und fasse sie prägnant zusammen. "
+            f"Analysiere die wichtigsten Themen, Stimmungen und Erkenntnisse und fasse sie prägnant zusammen.Antworte nicht zu ausgeglichen, sondern mit eindeutigen und klar benannten Ergebnissen. "
             f"Hier sind die Kommentare:\n\n{text}\n\nZusammenfassung:"
         )
     else:
         prompt = (
             f"Bitte führe eine qualitative Analyse der folgenden Video-Kommentare durch. "
-            f"Das Video heißt '{video_title}'. Fasse die wichtigsten Themen, Stimmungen und Erkenntnisse zusammen. "
+            f"Das Video heißt '{video_title}'. Fasse die wichtigsten Themen, Stimmungen und Erkenntnisse zusammen.Antworte nicht zu ausgeglichen, sondern mit eindeutigen und klar benannten Ergebnissen. "
             f"Hier sind die Kommentare:\n\n{text}\n\nZusammenfassung:"
         )
     return prompt
 
-def perform_llm_analysis(text, video_title="", analysis_mode="default", keywords=None, comment_count=None, max_length=10000, custom_prompt=None, max_tokens=1000):
+def perform_llm_analysis(text, video_title="", analysis_mode="default", keywords=None, comment_count=None, max_length=30000, custom_prompt=None, max_tokens=1000):
     if custom_prompt is None:
         prompt = generate_llm_prompt(text, video_title, analysis_mode, keywords, comment_count, max_length)
     else:
@@ -247,7 +247,7 @@ def perform_llm_analysis(text, video_title="", analysis_mode="default", keywords
         with st.spinner("GPT-4 Analyse läuft..."):
             response = client.chat.completions.create(
                 messages=[
-                    {"role": "system", "content": "Du bist ein hilfsbereiter Analyse-Assistent, der Video-Kommentare qualitativ auswertet."},
+                    {"role": "system", "content": "Du bist ein hilfsbereiter Analyse-Assistent, der Video-Kommentare qualitativ auswertet. Du antwortest sehr konkret und eindeutig. Du belegst deine Ergebnisse mit Zitaten."},
                     {"role": "user", "content": prompt},
                 ],
                 model="gpt-4o",
