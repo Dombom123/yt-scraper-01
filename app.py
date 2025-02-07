@@ -401,10 +401,8 @@ pages = {
     "LLM Comment Analysis": "📝 LLM Comment Analysis"
 }
 
-page = "Dashboard & Metrics"
-for page_name, page_label in pages.items():
-    if st.sidebar.button(page_label):
-        page = page_name
+# Use a radio button that returns the selected key
+page = st.sidebar.selectbox("Navigation", list(pages.keys()))
 
 # ----- Seite: Dashboard & Metrics -----
 if page == "Dashboard & Metrics":
