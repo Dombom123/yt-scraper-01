@@ -3,9 +3,9 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import re
-from wordcloud import WordCloud  # We don't use built-in STOPWORDS anymore.
+from wordcloud import WordCloud  # Wir verwenden die eingebauten STOPWORDS nicht mehr.
 import nltk
-# Commented out because sentiment analysis is pre-calculated:
+# Auskommentiert, da Sentiment-Analyse vorab berechnet wird:
 # from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from nltk.corpus import stopwords as nltk_stopwords
 import plotly.express as px
@@ -15,17 +15,17 @@ from io import BytesIO
 import os
 import pickle
 from openai import OpenAI
+from datetime import datetime
 
-# Download required NLTK resources (only stopwords are needed)
-# nltk.download('vader_lexicon')  <-- Removed since sentiment analysis is cached
+# Lade erforderliche NLTK-Ressourcen (nur Stopwords benötigt)
 nltk.download('stopwords')
 
-# Set up OpenAI API key from environment variable or Streamlit secrets
+# OpenAI API-Key aus Umgebungsvariablen oder Streamlit-Secrets
 api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", "")
 client = OpenAI(api_key=api_key)
 
 # =============================================================================
-# Data Loading, Validation, Mapping, and Cleaning Functions
+# Datenladen, Validierung, Mapping und Bereinigung
 # =============================================================================
 
 @st.cache_data
@@ -48,7 +48,7 @@ def load_pickle(file_path):
         return None
 
 def validate_video_data(df):
-    expected_columns = ['Video-ID', 'Titel', 'Upload-Datum', 'Views', 'Likes', 'Kommentare']
+    expected_columns = ['Video-ID', 'Titel', 'Upload-Datum', 'Views', 'Likes']
     missing = [col for col in expected_columns if col not in df.columns]
     if missing:
         st.error("Die Video CSV fehlt die folgenden erforderlichen Spalten: " + ", ".join(missing))
@@ -75,7 +75,8 @@ def clean_video_data(df):
     df = df.drop_duplicates().copy()
     if 'Upload-Datum' in df.columns:
         df['Upload-Datum'] = pd.to_datetime(df['Upload-Datum'], errors='coerce')
-    for col in ['Views', 'Likes', 'Kommentare']:
+    # Konvertiere nur die numerischen Spalten Views und Likes
+    for col in ['Views', 'Likes']:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
     return df
@@ -92,8 +93,8 @@ def map_video_columns(df):
         "title": "Titel",
         "upload_date": "Upload-Datum",
         "view_count": "Views",
-        "like_count": "Likes",
-        "comment_count": "Kommentare"
+        "like_count": "Likes"
+        # Keine Kommentarspalte, da diese nicht benötigt wird
     }
     available_mapping = {old: new for old, new in mapping.items() if old in df.columns}
     return df.rename(columns=available_mapping)
@@ -109,7 +110,12 @@ def map_comments_columns(df):
     available_mapping = {old: new for old, new in mapping.items() if old in df.columns}
     return df.rename(columns=available_mapping)
 
-def prepare_video_data(file):
+# Funktionen zum Speichern als Parquet
+def save_as_parquet(df, parquet_file):
+    os.makedirs(os.path.dirname(parquet_file), exist_ok=True)
+    df.to_parquet(parquet_file, index=False)
+
+def load_video_data_from_csv(file):
     df = load_csv(file)
     if df is not None:
         df = map_video_columns(df)
@@ -118,7 +124,7 @@ def prepare_video_data(file):
             return df
     return None
 
-def prepare_comments_data(file):
+def load_comments_data_from_csv(file):
     df = load_csv(file)
     if df is not None:
         df = map_comments_columns(df)
@@ -127,14 +133,36 @@ def prepare_comments_data(file):
             return df
     return None
 
+def prepare_video_data(file):
+    parquet_file = file.replace(".csv", ".parquet")
+    if os.path.exists(parquet_file):
+        return pd.read_parquet(parquet_file)
+    else:
+        df = load_video_data_from_csv(file)
+        if df is not None:
+            save_as_parquet(df, parquet_file)
+            return df
+    return None
+
+def prepare_comments_data(file):
+    parquet_file = file.replace(".csv", ".parquet")
+    if os.path.exists(parquet_file):
+        return pd.read_parquet(parquet_file)
+    else:
+        df = load_comments_data_from_csv(file)
+        if df is not None:
+            save_as_parquet(df, parquet_file)
+            return df
+    return None
+
 # =============================================================================
-# Analysis Functions and Customizable Components
+# Analyse-Funktionen und anpassbare Komponenten
 # =============================================================================
 
 def generate_wordcloud(text, custom_stopwords="", min_word_length=0):
     """
-    Generates a WordCloud using German stopwords and additional custom stopwords.
-    Returns the WordCloud object, the set of active stopwords, and the filtered text.
+    Generiert eine WordCloud mit deutschen Stoppwörtern und zusätzlichen benutzerdefinierten Stoppwörtern.
+    Liefert das WordCloud-Objekt, die aktive Menge der Stoppwörter und den gefilterten Text.
     """
     german_stopwords = set(nltk_stopwords.words("german"))
     additional_stopwords = set([w.strip().lower() for w in custom_stopwords.split(",") if w.strip()])
@@ -149,20 +177,33 @@ def generate_wordcloud(text, custom_stopwords="", min_word_length=0):
     wc = WordCloud(width=800, height=400, background_color='white').generate(filtered_text)
     return wc, active_stopwords, filtered_text
 
-# Since sentiment analysis is pre-calculated, we replace this function with a stub.
+# Da die Sentiment-Analyse vorab berechnet ist, ersetzen wir diese Funktion durch einen Stub.
 def perform_sentiment_analysis(comments_df):
-    st.info("Sentiment analysis is pre-calculated; skipping runtime analysis.")
+    st.info("Sentiment-Analyse ist vorab berechnet; Laufzeitanalyse wird übersprungen.")
     return comments_df
 
 def plot_engagement(df):
-    fig = px.scatter(df, x='Views', y='Kommentare', size='Likes',
-                     hover_data=['Titel'] if 'Titel' in df.columns else None,
-                     title="Engagement: Views vs. Kommentare")
+    df = df.copy()
+    # Erzeuge eine neue Spalte, in der negative Likes auf 0 gesetzt werden
+    df['Likes_positive'] = df['Likes'].clip(lower=0)
+    fig = px.scatter(
+        df,
+        x='Views',
+        y='Likes',
+        size='Likes_positive',  # Verwende nur positive Werte für die Marker-Größe
+        hover_data=['Titel'] if 'Titel' in df.columns else None,
+        title="Engagement: Ansichten vs. Likes"
+    )
+    # Setze den y-Achsenbereich so, dass nur Werte ab 0 angezeigt werden
+    max_likes = df['Likes_positive'].max() if not df['Likes_positive'].empty else 0
+    fig.update_yaxes(range=[0, max_likes * 1.1])
     return fig
 
-def rank_top_videos(df, view_weight=1, like_weight=2, comment_weight=3):
+
+def rank_top_videos(df, view_weight=1, like_weight=2):
     df = df.copy()
-    df['engagement_score'] = df['Views'] * view_weight + df['Likes'] * like_weight + df['Kommentare'] * comment_weight
+    # Engagement-Score berechnen ohne Kommentare
+    df['engagement_score'] = df['Views'] + 2 * df['Likes']
     top10 = df.sort_values('engagement_score', ascending=False).head(10)
     return top10
 
@@ -185,7 +226,7 @@ def download_figure(fig, filename="figure.png"):
     st.download_button(label="Download Bild", data=buf, file_name=filename, mime="image/png")
 
 # ============================================================================
-# Prompt Generation and Download Formatting Functions
+# Prompt-Generierungs- und Download-Formatierungsfunktionen
 # ============================================================================
 
 def generate_llm_prompt(text, video_title="", analysis_mode="default", keywords=None, comment_count=None, max_length=30000):
@@ -236,7 +277,6 @@ def perform_llm_analysis(text, video_title="", analysis_mode="default", keywords
         return "Fehler bei der LLM-Analyse"
 
 def format_download_result(analysis_type, used_prompt, input_text, analysis_result):
-    from datetime import datetime
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     output = (
         f"Analysis Type: {analysis_type}\n"
@@ -248,7 +288,7 @@ def format_download_result(analysis_type, used_prompt, input_text, analysis_resu
     return output
 
 # ============================================================================
-# Functions for Saving and Loading Quantitative Analysis Results
+# Funktionen zum Speichern und Laden quantitativer Analyseergebnisse
 # ============================================================================
 
 def save_quantitative_results(results):
@@ -263,7 +303,7 @@ def load_quantitative_results(file_obj):
         return None
 
 # =============================================================================
-# Additional Filtering and Analysis Functions
+# Zusätzliche Filter- und Analysefunktionen
 # =============================================================================
 
 def filter_comments(comments_df, username_filter="", start_date=None, end_date=None):
@@ -295,13 +335,13 @@ def compare_sentiments_to_views(video_df, comments_df):
     return merged_df
 
 # =============================================================================
-# Streamlit App – Pages and User Interaction
+# Streamlit App – Seiten und Benutzerinteraktion
 # =============================================================================
 
 st.title("Analyse des YouTube-Kanals 'unbubble'")
 
 # -----------------------------------------------------------------------------
-# Session State Initialization
+# Session State Initialisierung
 # -----------------------------------------------------------------------------
 if 'video_df' not in st.session_state:
     st.session_state.video_df = None
@@ -317,7 +357,7 @@ if 'wordcloud_comments_fig' not in st.session_state:
     st.session_state.wordcloud_comments_fig = None
 
 # -----------------------------------------------------------------------------
-# Pre-calculate and load standard data files
+# Standarddaten laden (Parquet-Version nutzen, falls vorhanden)
 # -----------------------------------------------------------------------------
 default_video_file = "youtube_data/videos_detailed_with_comments.csv"
 if st.session_state.video_df is None:
@@ -325,7 +365,6 @@ if st.session_state.video_df is None:
         video_df_default = prepare_video_data(default_video_file)
         if video_df_default is not None:
             st.session_state.video_df = video_df_default
-            # st.info("Standard Video-Metadaten aus 'videos_detailed_with_comments.csv' geladen.")
     else:
         st.error("Standard Video-Datensatz nicht gefunden.")
 
@@ -335,7 +374,6 @@ if st.session_state.comments_df is None:
         comments_df_default = prepare_comments_data(default_comments_file)
         if comments_df_default is not None:
             st.session_state.comments_df = comments_df_default
-            # st.info("Standard Kommentardaten aus 'comments_with_sentiment.csv' geladen.")
     else:
         st.error("Standard Kommentardatensatz nicht gefunden.")
 
@@ -346,7 +384,6 @@ if not st.session_state.quant_results:
             with open(default_quant_file, "rb") as f:
                 quant_results_default = pickle.load(f)
             st.session_state.quant_results = quant_results_default
-            # st.info("Standard quantitative Analyseergebnisse aus 'quant_results.pkl' geladen.")
         except Exception as e:
             st.error(f"Fehler beim Laden der quantitativen Ergebnisse: {e}")
     else:
@@ -355,24 +392,21 @@ if not st.session_state.quant_results:
 if st.session_state.sentiment_analysis is None and st.session_state.quant_results:
     if "sentiment_df" in st.session_state.quant_results and isinstance(st.session_state.quant_results["sentiment_df"], pd.DataFrame):
         st.session_state.sentiment_analysis = st.session_state.quant_results["sentiment_df"]
-        # st.info("Sentiment-Analyse aus quant_results geladen.")
 
 # -----------------------------------------------------------------------------
-# Sidebar Navigation – Two Pages Only
+# Sidebar Navigation – Zwei Seiten
 # -----------------------------------------------------------------------------
-# Define the pages with emojis
 pages = {
     "Dashboard & Metrics": "📊 Dashboard & Metrics",
     "LLM Comment Analysis": "📝 LLM Comment Analysis"
 }
 
-# Create buttons for each page
 page = "Dashboard & Metrics"
 for page_name, page_label in pages.items():
     if st.sidebar.button(page_label):
         page = page_name
 
-# ----- Page: Dashboard & Metrics -----
+# ----- Seite: Dashboard & Metrics -----
 if page == "Dashboard & Metrics":
     st.header("Dashboard & Metrics")
     if st.session_state.video_df is None or st.session_state.comments_df is None:
@@ -381,22 +415,21 @@ if page == "Dashboard & Metrics":
         video_df = st.session_state.video_df
         comments_df = st.session_state.comments_df
         
-        # Additional KPIs and Metrics
+        # KPIs berechnen (ohne 'Kommentare')
         total_videos = len(video_df)
         total_views = video_df['Views'].sum() if 'Views' in video_df.columns else 0
         total_likes = video_df['Likes'].sum() if 'Likes' in video_df.columns else 0
-        total_comments = video_df['Kommentare'].sum() if 'Kommentare' in video_df.columns else 0
+        total_comments = len(comments_df)
+
         avg_views = total_views / total_videos if total_videos > 0 else 0
         avg_likes = total_likes / total_videos if total_videos > 0 else 0
-        avg_comments = total_comments / total_videos if total_videos > 0 else 0
         
-        # Calculate engagement score (example: Views + 2*Likes + 3*Comments)
         video_df = video_df.copy()
-        video_df['engagement_score'] = video_df['Views'] + 2 * video_df['Likes'] + 3 * video_df['Kommentare']
+        # Engagement-Score berechnen: Views + 2 * Likes
+        video_df['engagement_score'] = video_df['Views'] + 2 * video_df['Likes']
         avg_engagement = video_df['engagement_score'].mean()
         top_videos = rank_top_videos(video_df)
         
-        # Ensure sentiment analysis is used from cache (pre-calculated)
         if st.session_state.sentiment_analysis is None or not isinstance(st.session_state.sentiment_analysis, pd.DataFrame):
             comments_df = perform_sentiment_analysis(comments_df)
             st.session_state.sentiment_analysis = comments_df.copy()
@@ -410,20 +443,17 @@ if page == "Dashboard & Metrics":
         col3.metric("Total Likes", total_likes)
         col4.metric("Total Comments", total_comments)
         
-        col5, col6, col7 = st.columns(3)
-        col5.metric("Avg. Views", f"{avg_views:.0f}")
-        col6.metric("Avg. Likes", f"{avg_likes:.0f}")
-        col7.metric("Avg. Comments", f"{avg_comments:.0f}")
+        col4, col5 = st.columns(2)
+        col4.metric("Avg. Views", f"{avg_views:.0f}")
+        col5.metric("Avg. Likes", f"{avg_likes:.0f}")
         
         st.metric("Avg. Engagement Score", f"{avg_engagement:.0f}")
         
         st.subheader("Sentiment Analysis")
         st.write("Sentiment Counts:")
-        # Build the sentiment counts DataFrame in one go:
         sentiment_counts_df = comments_df['sentiment'].value_counts().rename_axis('sentiment').reset_index(name='count')
         st.write(sentiment_counts_df)
-
-        # Use the new column names in the bar chart
+        
         fig_sent = px.bar(
             sentiment_counts_df,
             x='sentiment',
@@ -456,14 +486,14 @@ if page == "Dashboard & Metrics":
         csv_top10 = top_videos.to_csv(index=False).encode("utf-8")
         st.download_button("Download Top 10 Videos CSV", csv_top10, "top10_videos.csv", "text/csv")
         
-        st.subheader("Daten Export")
-        csv_video = video_df.to_csv(index=False).encode("utf-8")
-        csv_comments = comments_df.to_csv(index=False).encode("utf-8")
-        col_exp1, col_exp2 = st.columns(2)
-        col_exp1.download_button("Download Video CSV", csv_video, "video_data.csv", "text/csv")
-        col_exp2.download_button("Download Kommentare CSV", csv_comments, "comments_data.csv", "text/csv")
+        # st.subheader("Daten Export")
+        # csv_video = video_df.to_csv(index=False).encode("utf-8")
+        # csv_comments = comments_df.to_csv(index=False).encode("utf-8")
+        # col_exp1, col_exp2 = st.columns(2)
+        # col_exp1.download_button("Download Video CSV", csv_video, "video_data.csv", "text/csv")
+        # col_exp2.download_button("Download Kommentare CSV", csv_comments, "comments_data.csv", "text/csv")
 
-# ----- Page: LLM Comment Analysis -----
+# ----- Seite: LLM Comment Analysis -----
 elif page == "LLM Comment Analysis":
     st.header("LLM Comment Analysis")
     if st.session_state.video_df is None or st.session_state.comments_df is None:
